@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "arxiv-insight": {
+      "command": "uv",
+      "args": ["run", "--directory", "../ArXiv-Insight-MCP-Server", "arxiv_insight.py"]
+    },
+    "fetch": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-fetch"
+      ]
+    }
+  }
+}
