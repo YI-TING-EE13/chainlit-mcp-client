@@ -1,6 +1,8 @@
 """
 MCP Client Wrapper module.
-Manages connections to Model Context Protocol (MCP) servers, tool execution, and resource retrieval.
+
+Manages connections to Model Context Protocol (MCP) servers, tool execution,
+and resource retrieval, while also handling sampling callbacks.
 """
 
 import asyncio
@@ -14,6 +16,7 @@ import mcp.types as types
 
 from .config import MCP_CONFIG, CLIENT_ROOT
 from .llm import LLMClient
+from .tokenizer import TokenCounter
 
 class MCPClientWrapper:
     """
@@ -30,12 +33,17 @@ class MCPClientWrapper:
         self.exit_stack = AsyncExitStack()
         self.sessions: Dict[str, ClientSession] = {}
         self.tool_to_server: Dict[str, str] = {} # Map tool name to server name
+        self._sampling_usage_events: List[Dict[str, Any]] = []
+        self._token_counter = TokenCounter(self.llm_client.settings.tokenizer_model)
 
-    async def connect(self):
-        """
-        Connect to all MCP servers defined in the configuration (mcp.json).
-        Establishes stdio connections and initializes sessions.
-        """
+    def pop_sampling_usage_events(self) -> List[Dict[str, Any]]:
+        """Return and clear buffered sampling usage events."""
+        events = list(self._sampling_usage_events)
+        self._sampling_usage_events.clear()
+        return events
+
+    async def connect(self) -> None:
+        """Connect to all MCP servers defined in mcp.json and initialize sessions."""
         servers = MCP_CONFIG.get("mcpServers", {})
         if not servers:
             print("No servers found in mcp.json")
@@ -83,10 +91,8 @@ class MCPClientWrapper:
             except Exception as e:
                 print(f"Failed to connect to {server_name}: {e}")
 
-    async def cleanup(self):
-        """
-        Clean up resources and close all server connections.
-        """
+    async def cleanup(self) -> None:
+        """Close all server connections and release resources."""
         try:
             await self.exit_stack.aclose()
         except RuntimeError as e:
@@ -100,12 +106,7 @@ class MCPClientWrapper:
             print(f"Error during cleanup: {e}")
 
     async def list_tools(self) -> types.ListToolsResult:
-        """
-        List available tools from all connected servers.
-        
-        Returns:
-            types.ListToolsResult: A result object containing the list of tools.
-        """
+        """Return a combined list of tools from all connected servers."""
         all_tools = []
         self.tool_to_server.clear()
 
@@ -144,12 +145,7 @@ class MCPClientWrapper:
         return await session.call_tool(name, arguments=arguments)
 
     async def list_resources(self) -> Dict[str, List[types.Resource]]:
-        """
-        List resources from all connected servers.
-
-        Returns:
-            Dict[str, List[types.Resource]]: A dictionary mapping server names to their resources.
-        """
+        """Return resources grouped by server name."""
         all_resources = {}
         for server_name, session in self.sessions.items():
             try:
@@ -160,19 +156,8 @@ class MCPClientWrapper:
         return all_resources
 
     async def read_resource(self, uri: str) -> Any:
-        """
-        Read a specific resource by URI.
-        Iterates through all servers to find one that can read the resource.
-
-        Args:
-            uri (str): The URI of the resource to read.
-
-        Returns:
-            Any: The content of the resource.
-        """
-        # This is tricky because we don't have a map of URI -> Server.
-        # We have to try all servers or rely on list_resources having been called.
-        # A simple approach: Try all servers, return first success.
+        """Read a resource by URI, searching across servers for a match."""
+        # There is no URI-to-server map. Try all servers and return first success.
         
         for server_name, session in self.sessions.items():
             try:
@@ -183,40 +168,60 @@ class MCPClientWrapper:
         raise ValueError(f"Resource {uri} not found or readable on any server.")
 
     async def handle_sampling(self, context: Any, params: types.CreateMessageRequestParams) -> types.CreateMessageResult:
-        """
-        Handle sampling requests from the server (e.g., for summarization or agentic behavior).
-        This allows the MCP server to ask the client's LLM to generate text.
-
-        Args:
-            context (Any): The context of the request.
-            params (types.CreateMessageRequestParams): The parameters for the message generation.
-
-        Returns:
-            types.CreateMessageResult: The generated message result.
-        """
+        """Handle sampling requests from servers using centralized defaults."""
         print(f"Sampling requested by server. Max tokens: {params.maxTokens}")
         
-        # Convert MCP messages to OpenAI messages format
+        # Convert MCP messages to OpenAI-compatible message dicts.
         openai_messages = []
         
-        # Add system prompt if present
+        # Add system prompt if present.
         if params.systemPrompt:
             openai_messages.append({"role": "system", "content": params.systemPrompt})
             
         for msg in params.messages:
             if msg.content.type == "text":
                 openai_messages.append({"role": msg.role, "content": msg.content.text})
-            # Note: Image content handling omitted for simplicity
+            # Note: Image content handling omitted for simplicity.
             
         try:
-            # Call LLM via our wrapper
+            sampling = self.llm_client.settings.sampling
+
+            max_tokens = params.maxTokens if params.maxTokens is not None else sampling.max_tokens
+            temperature = params.temperature if params.temperature is not None else sampling.temperature
+            top_p = sampling.top_p
+
+            extra_options = sampling.to_ollama_options()
+            extra_body = {"options": extra_options} if extra_options else None
+
+            kwargs: Dict[str, Any] = {}
+            if max_tokens is not None:
+                kwargs["max_tokens"] = max_tokens
+            if temperature is not None:
+                kwargs["temperature"] = temperature
+            if top_p is not None:
+                kwargs["top_p"] = top_p
+            if extra_body is not None:
+                kwargs["extra_body"] = extra_body
+
+            # Call LLM via the wrapper to apply defaults.
             completion = await self.llm_client.chat_completion(
                 messages=openai_messages,
-                max_tokens=params.maxTokens or 4096,
-                temperature=params.temperature or 0.8,
+                **kwargs
             )
             
             text = completion.choices[0].message.content
+
+            if self.llm_client.settings.token_usage_enabled:
+                prompt_tokens = self._token_counter.count_messages(openai_messages)
+                completion_tokens = self._token_counter.count_text(text or "")
+                self._sampling_usage_events.append({
+                    "type": "usage",
+                    "input": prompt_tokens,
+                    "output": completion_tokens,
+                    "total": prompt_tokens + completion_tokens,
+                    "source": "mcp_sampling",
+                    "method": "local"
+                })
             
             return types.CreateMessageResult(
                 role="assistant",

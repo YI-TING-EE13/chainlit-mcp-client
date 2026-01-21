@@ -24,12 +24,26 @@ MANIFEST
 
 # Virtual Environments
 .env
+.env.*
+*.env
 .venv
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
+
+# Secrets / credentials
+*.secret
+*.secrets
+*.token
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+*.cert
+secrets/
 
 # IDEs
 .vscode/
@@ -38,6 +52,38 @@ venv.bak/
 # Chainlit
 .chainlit/
 chainlit.md
+
+# Caches / tooling
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.cache/
+__pycache__/
+
+# uv / build artifacts
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Local data / artifacts
+data/
+datasets/
+models/
+checkpoints/
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+*.bin
+*.pkl
+*.db
+*.sqlite
+*.sqlite3
 
 # Logs
 *.log

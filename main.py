@@ -1,6 +1,9 @@
 """
-Main entry point for the MCP Client Application.
-Supports running in UI mode (Chainlit) or Agent mode (Headless - Future Work).
+Application entrypoint for the MCP Client.
+
+This module provides a small CLI wrapper to launch the Chainlit UI (default)
+or a future headless agent mode. It is intentionally lightweight and delegates
+all application logic to the core and interfaces packages.
 """
 
 import argparse
@@ -8,17 +11,13 @@ import subprocess
 import sys
 import os
 
-def run_ui():
-    """
-    Run the Chainlit UI.
-    Launches the Chainlit server using the `uv` package manager.
-    """
+def run_ui() -> None:
+    """Launch the Chainlit UI via uv-managed execution."""
     print("Starting UI mode...")
-    # Path to the UI file
+    # Resolve the UI module path explicitly to avoid CWD ambiguity.
     ui_path = os.path.join(os.path.dirname(__file__), "interfaces", "ui.py")
     
-    # Use 'uv run' to ensure we are in the correct environment
-    # This assumes 'uv' is installed and available in the system PATH
+    # Use uv to ensure execution within the managed environment.
     cmd = ["uv", "run", "chainlit", "run", ui_path, "--port", "8000"]
     
     try:
@@ -28,18 +27,13 @@ def run_ui():
     except subprocess.CalledProcessError as e:
         print(f"Error running UI: {e}")
 
-def run_agent():
-    """
-    Run the Agent mode (Placeholder).
-    This mode is intended for autonomous execution without a GUI.
-    """
+def run_agent() -> None:
+    """Placeholder for a future headless agent mode."""
     print("Agent mode is not yet implemented.")
     print("This mode will allow autonomous execution of tasks without a GUI.")
 
-def main():
-    """
-    Parse command line arguments and execute the requested mode.
-    """
+def main() -> None:
+    """Parse CLI arguments and execute the requested mode."""
     parser = argparse.ArgumentParser(description="MCP Client Application")
     parser.add_argument("mode", choices=["ui", "agent"], nargs="?", default="ui", help="Mode to run the application in (default: ui)")
     

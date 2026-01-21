@@ -1,44 +1,54 @@
-# MCP Client
+# 🤖 MCP Client (Chainlit + MCP)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![Chainlit](https://img.shields.io/badge/UI-Chainlit-orange)](https://github.com/Chainlit/chainlit)
+[![Protocol](https://img.shields.io/badge/Protocol-MCP-green)](https://modelcontextprotocol.io/)
 
-A professional, robust **Model Context Protocol (MCP)** client implementation featuring a modern **Chainlit** user interface and seamless integration with **Ollama** (or compatible OpenAI APIs).
+A professional **Model Context Protocol (MCP)** client with a modern **Chainlit** UI and
+seamless **Ollama** integration (or any OpenAI-compatible API). Built for agentic research
+workflows, tool orchestration, and structured reasoning across connected MCP servers.
 
-This client is designed to connect with various MCP Servers (like the included ArXiv Insight Server) to provide an agentic AI experience capable of tool usage, research, and complex reasoning.
+---
 
-## 🚀 Features
+## ✨ Key Features
 
-- **Model Context Protocol (MCP) Support**: Fully compliant with the MCP standard to connect with any MCP-compatible server.
-- **Interactive UI**: Built with [Chainlit](https://github.com/Chainlit/chainlit) for a beautiful, chat-based user experience.
-- **Agentic Workflow**: Implements a ReAct (Reasoning + Acting) loop allowing the AI to autonomously use tools, analyze results, and refine its search.
-- **Ollama Integration**: Optimized for local LLMs (e.g., `nemotron-3-nano`, `llama3`) via Ollama, but compatible with any OpenAI-API-compliant provider.
-- **Robust Error Handling**: Includes secure input parsing, connection management, and graceful failure recovery.
-- **Easy Deployment**: Streamlined dependency management and execution using `uv`.
+- **MCP Compatibility**: Connects to any MCP-compliant server.
+- **Interactive UI**: Powered by Chainlit for a clean, chat-based experience.
+- **ReAct Workflow**: Tool usage, analysis, and response synthesis in one loop.
+- **Ollama Integration**: Optimized for local models and OpenAI-compatible APIs.
+- **Centralized Configuration**: Unified settings for LLM defaults and sampling.
+- **uv-First**: Reproducible dependency management and execution.
 
-## 📋 Prerequisites
+---
+
+## 🛠️ Installation
+
+### Prerequisites
 
 Before you begin, ensure you have the following installed:
 
 - **Python 3.12+**
-- **[uv](https://github.com/astral-sh/uv)**: An extremely fast Python package installer and resolver.
-- **[Ollama](https://ollama.com/)**: For running the local LLM (or access to an OpenAI-compatible API).
+- **uv** (recommended): https://github.com/astral-sh/uv
+- **Ollama** (or any OpenAI-compatible API): https://ollama.com/
 
-## 🛠️ Installation
+### Setup
 
-1. **Clone the Repository**
+1. **Clone the repository**
    ```bash
    git clone https://github.com/YI-TING-EE13/chainlit-mcp-client.git
    cd chainlit-mcp-client
    ```
 
-2. **Install Dependencies**
-   Using `uv` ensures a reproducible environment:
+2. **Install dependencies**
+  Using `uv` ensures a reproducible environment:
    ```bash
    uv sync
    ```
 
-3. **Configure MCP Servers**
-   The client reads server configurations from `mcp.json` in the root directory. Ensure this file exists and points to your MCP servers.
+3. **Configure MCP servers**
+  The client reads server configurations from mcp.json in the root directory. Ensure this file exists and points to your MCP servers.
 
-   *Example `mcp.json`:*
+    Example mcp.json:
    ```json
    {
      "mcpServers": {
@@ -53,9 +63,20 @@ Before you begin, ensure you have the following installed:
    }
    ```
 
+4. **Install SQLite (for long-term memory)**
+  SQLite is required if you enable long-term memory. On Ubuntu/Debian:
+  ```bash
+  sudo apt-get update
+  sudo apt-get install -y sqlite3
+  ```
+
+---
+
 ## ⚙️ Configuration
 
-Create a `.env` file in the `mcp-client` directory to configure the LLM connection.
+Configuration is centralized in core/settings.py and controlled via environment variables.
+Create a .env file in the chainlit-mcp-client directory to configure the LLM connection
+and generation hyperparameters. You can copy .env.example as a starting point.
 
 ```bash
 # .env
@@ -68,6 +89,40 @@ OLLAMA_KEY=ollama
 
 # Model to use (ensure you have pulled this model in Ollama)
 OLLAMA_MODEL=nemotron-3-nano:latest
+
+# UI display name
+ASSISTANT_NAME=Nemotron
+
+# Default chat generation settings
+LLM_NUM_CTX=1048576
+LLM_MAX_TOKENS=
+LLM_TEMPERATURE=0.8
+LLM_TOP_P=
+LLM_TOP_K=
+LLM_REPEAT_PENALTY=
+LLM_NUM_PREDICT=
+
+# MCP sampling defaults (used for tool-driven summarization)
+SAMPLING_NUM_CTX=1048576
+SAMPLING_MAX_TOKENS=4096
+SAMPLING_TEMPERATURE=0.8
+SAMPLING_TOP_P=
+SAMPLING_TOP_K=
+SAMPLING_REPEAT_PENALTY=
+SAMPLING_NUM_PREDICT=
+
+# Local token usage reporting
+TOKEN_USAGE_ENABLED=true
+TOKENIZER_MODEL=cl100k_base
+
+# Long-term memory
+MEMORY_ENABLED=true
+MEMORY_DB_PATH=data/memory.db
+MEMORY_DEFAULT_INCOGNITO=false
+MEMORY_SUMMARY_ENABLED=true
+MEMORY_SUMMARY_MAX_TOKENS=512
+MEMORY_SUMMARY_SCHEDULER_ENABLED=true
+MEMORY_SUMMARY_INTERVAL_SECONDS=600
 ```
 
 To pull the default model in Ollama:
@@ -75,9 +130,11 @@ To pull the default model in Ollama:
 ollama pull nemotron-3-nano
 ```
 
+---
+
 ## 🚀 Usage
 
-### Running the UI
+### Run the UI
 To start the Chainlit chat interface:
 
 ```bash
@@ -88,13 +145,23 @@ Or explicitly:
 uv run main.py ui
 ```
 
-The UI will be available at `http://localhost:8000`.
+The UI will be available at http://localhost:8000.
+
+### Long-term memory
+When MEMORY_DEFAULT_INCOGNITO=false, the app stores conversation history and
+injects the latest summary into the system context on startup. When set to true,
+only the default system prompt is used and no history is written.
+
+### Token usage
+Token usage is calculated locally with a tokenizer when TOKEN_USAGE_ENABLED=true.
 
 ### Agent Mode (Headless)
-*Coming Soon: A headless mode for automated tasks.*
+Coming soon: a headless mode for automated tasks.
 ```bash
 uv run main.py agent
 ```
+
+---
 
 ## 🏗️ Architecture
 
@@ -103,7 +170,8 @@ The project follows a modular architecture:
 ```
 mcp-client/
 ├── core/
-│   ├── config.py       # Configuration & System Prompts
+│   ├── config.py       # System prompts + MCP configuration
+│   ├── settings.py     # Centralized LLM + hyperparameter settings
 │   ├── engine.py       # Chat Engine (ReAct Loop)
 │   ├── llm.py          # LLM Client Wrapper (OpenAI/Ollama)
 │   └── mcp_client.py   # MCP Connection & Tool Management
@@ -116,9 +184,12 @@ mcp-client/
 
 ### Key Components
 
-- **ChatEngine (`core/engine.py`)**: The brain of the application. It manages the conversation history and executes the loop: `LLM Think` -> `Tool Call` -> `MCP Execution` -> `LLM Response`.
-- **MCPClientWrapper (`core/mcp_client.py`)**: Handles the complexity of connecting to multiple MCP servers via stdio, managing sessions, and routing tool calls.
-- **LLMClient (`core/llm.py`)**: A clean abstraction over the `AsyncOpenAI` client, pre-configured for local Ollama instances.
+- **ChatEngine (core/engine.py)**: Manages conversation history and the ReAct loop.
+- **MCPClientWrapper (core/mcp_client.py)**: Connects to MCP servers, routes tool calls, and handles sampling.
+- **LLMClient (core/llm.py)**: Thin wrapper over AsyncOpenAI with centralized defaults.
+- **MemoryStore (core/memory_store.py)**: SQLite-backed long-term storage for conversations and summaries.
+
+---
 
 ## 🤝 Contributing
 
@@ -132,4 +203,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 📄 License
 
-Distributed under the MIT License. See `LICENSE` for more information.
+This project is licensed under the MIT License. See LICENSE for more information.

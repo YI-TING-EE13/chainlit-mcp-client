@@ -1,33 +1,18 @@
 """
 Configuration module for the MCP Client.
-Handles environment variables, MCP server configuration, and system prompts.
+
+This module stores the system prompt and loads MCP server configuration
+from mcp.json. LLM hyperparameters are centralized in core/settings.py.
 """
 
 import os
 import json
-from dotenv import load_dotenv
 
-# Load environment variables from a .env file if present
-load_dotenv()
+from .settings import load_settings
 
-# --- LLM Configuration ---
-# Base URL for the Ollama API (default: localhost)
-OLLAMA_BASE_URL = os.getenv("OLLAMA_HOST", "http://localhost:11434/v1")
-
-# Ensure the protocol (http/https) is present in the URL
-if not OLLAMA_BASE_URL.startswith(("http://", "https://")):
-    OLLAMA_BASE_URL = f"http://{OLLAMA_BASE_URL}"
-
-# Ensure the URL ends with the /v1 API version
-if not OLLAMA_BASE_URL.endswith("/v1"):
-    OLLAMA_BASE_URL = f"{OLLAMA_BASE_URL.rstrip('/')}/v1"
-
-# API Key for Ollama (usually not required, but good practice for compatibility)
-OLLAMA_API_KEY = os.getenv("OLLAMA_KEY", "ollama")
-
-# Model name to use (default: nemotron-3-nano:latest)
-# Can be overridden by the OLLAMA_MODEL environment variable
-MODEL_NAME = os.getenv("OLLAMA_MODEL", "nemotron-3-nano:latest")
+# --- Application Settings ---
+# Loaded for downstream consumers that may require centralized settings.
+SETTINGS = load_settings()
 
 # --- MCP Server Configuration ---
 # Determine the root directory of the client to locate mcp.json
@@ -35,12 +20,7 @@ CLIENT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
 MCP_CONFIG_PATH = os.path.join(CLIENT_ROOT, "mcp.json")
 
 def load_mcp_config() -> dict:
-    """
-    Load the MCP server configuration from mcp.json.
-    
-    Returns:
-        dict: The configuration dictionary, or an empty dict if loading fails.
-    """
+    """Load MCP server configuration from mcp.json."""
     if not os.path.exists(MCP_CONFIG_PATH):
         print(f"Warning: {MCP_CONFIG_PATH} not found.")
         return {}
@@ -74,8 +54,5 @@ SYSTEM_PROMPT = (
     "- **User Experience**: When you finish using tools, provide a complete final response. Do not leave the user waiting."
 )
 
-# --- Context Window Settings ---
-# Maximum context window size (in tokens)
-CONTEXT_WINDOW = 1048576  # 1M tokens (large context)
-SAMPLING_CONTEXT_WINDOW = 1048576
+# Note: LLM hyperparameters are now centralized in core/settings.py
 

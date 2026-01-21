@@ -1,0 +1,29 @@
+# Normalize text files and enforce LF endings
+* text=auto eol=lf
+
+# Source code
+*.py text eol=lf
+*.md text eol=lf
+*.toml text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Shell and config
+*.sh text eol=lf
+*.env text eol=lf
+
+# Binary assets
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.tar.gz binary
+*.tgz binary
+*.whl binary
+*.bin binary
+*.safetensors binary
