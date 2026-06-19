@@ -101,6 +101,7 @@ These checks do not require Ollama, LM Studio, or any LLM backend:
 ```powershell
 uv sync --frozen
 uv run python scripts\smoke_test.py
+uv run python scripts\mcp_integration_test.py
 ```
 
 The smoke test verifies:
@@ -110,6 +111,15 @@ The smoke test verifies:
 - `LLM_*` defaults work.
 - `OLLAMA_*` fallback still works.
 - `LLM_*` wins when both new and legacy variables are set.
+
+The MCP integration test starts the sibling `../mcp-server` through the stdio
+command configured in `mcp.json`. It verifies protocol-level connectivity,
+`tools/list`, `tools/call health_check`, `resources/list`, and `prompts/list`.
+It does not require LM Studio and does not call arXiv or any external network
+service.
+
+If the integration test fails, check `mcp.json`, the sibling `../mcp-server`
+path, and the server dependencies first.
 
 Passing these checks does not mean the complete Chainlit + LM Studio + MCP tool
 calling demo has succeeded.
