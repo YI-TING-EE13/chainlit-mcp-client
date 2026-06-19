@@ -46,6 +46,32 @@ Read priority:
 Local Server. If you load a different model, use the identifier shown by LM
 Studio Local Server.
 
+## Runtime Model Selection
+
+When Chainlit starts, the UI shows an **LM Studio model** selector in chat
+settings. The model list is loaded dynamically from the configured
+OpenAI-compatible endpoint:
+
+```text
+GET http://localhost:1234/v1/models
+```
+
+The startup default remains `LLM_MODEL=google/gemma-4-e4b`. Selecting another
+model changes only the current Chainlit session; it does not edit `.env`.
+
+For LM Studio, the client also derives the native model-management API root from
+`LLM_BASE_URL`. For example:
+
+```text
+http://localhost:1234/v1 -> http://localhost:1234/api/v1
+```
+
+When the native API is available, switching models attempts to unload the
+currently loaded model before loading the selected model. This is LM
+Studio-specific. Other OpenAI-compatible backends may only support `/v1/models`;
+in that case the UI keeps working, updates the runtime model when possible, and
+asks you to switch models manually in LM Studio if loading fails.
+
 ## MCP Server Configuration
 
 The client reads `mcp.json` from the repo root. The default local demo config is:
@@ -122,27 +148,33 @@ This flow requires manual validation with a running LM Studio server:
 Expected successful behavior:
 
 - Chainlit starts and connects to configured MCP servers.
+- The resource list shows `papers://recent` from `arxiv-insight`.
 - The model actually calls `health_check`.
 - The model then calls `search_arxiv`.
 - arXiv results come from MCP tool output, not from the model inventing citations.
 
-This full end-to-end demo has not been verified in this repo state because it
-requires a running LM Studio server, a loaded model, and manual UI/tool-calling
-confirmation.
+This full end-to-end demo has been verified on Windows with LM Studio Local
+Server, Chainlit, MCP tool calling, and the sibling `../mcp-server`.
+
+Verified baseline:
+
+- Endpoint: `http://localhost:1234/v1`
+- Model identifier: `google/gemma-4-e4b`
+- Resource shown: `papers://recent`
+- Successful tool calls: `health_check`, then `search_arxiv`
 
 ## Validation Status
 
 1. Local static/structure validation: available.
 2. MCP server smoke test: available in `../mcp-server`.
 3. MCP client config smoke test: available in this repo.
-4. Full Chainlit + LM Studio + MCP tool calling demo: not yet fully verified.
+4. Full Chainlit + LM Studio + MCP tool calling demo: verified on Windows.
 
 Current precise conclusion:
 
-> The repos pass local smoke tests that do not depend on an LLM backend and are
-> ready for demo preparation. The full Chainlit + LM Studio + MCP tool calling
-> flow still needs manual validation after LM Studio is started and a model is
-> loaded.
+> The repos pass local smoke tests that do not depend on an LLM backend. The
+> full Windows + LM Studio + Chainlit + MCP tool calling flow has also been
+> manually verified with `google/gemma-4-e4b` at `http://localhost:1234/v1`.
 
 ## Troubleshooting
 
@@ -189,6 +221,60 @@ Fix:
 - Set `.env` `LLM_MODEL` to that exact identifier.
 - Do not assume the README example name is the API identifier.
 
+### Model List Is Empty
+
+Symptoms:
+
+- The Chainlit model selector only shows the `.env` default.
+- `/v1/models` fails or returns no model IDs.
+
+Fix:
+
+- Confirm LM Studio Local Server is running.
+- Open `http://localhost:1234/v1/models` and verify it returns model IDs.
+- Keep using the default model if the API is temporarily unavailable.
+
+### Model Unload Failed
+
+Symptoms:
+
+- The UI reports that unloading the current model failed.
+- The selected model is not loaded.
+
+Fix:
+
+- Check whether LM Studio exposes a loaded model instance ID through its native
+  API.
+- Unload the model manually in LM Studio, then retry.
+- If VRAM is still full, close other loaded models or restart the LM Studio
+  Local Server.
+
+### Model Load Failed
+
+Symptoms:
+
+- The UI reports that loading the selected model failed.
+- The session keeps using the previous model.
+
+Fix:
+
+- Confirm the selected model is installed and loadable in LM Studio.
+- Check available VRAM.
+- Try loading the model manually in LM Studio first.
+
+### LM Studio Native API Is Unavailable
+
+Symptoms:
+
+- The model selector works, but the UI says native unload/load is unavailable.
+
+Fix:
+
+- This is expected for non-LM Studio OpenAI-compatible backends.
+- For LM Studio, confirm your version exposes `http://localhost:1234/api/v1`.
+- If native model management is unavailable, switch models manually in LM Studio
+  and then select the matching model in Chainlit.
+
 ### Model Does Not Reliably Support Tool Calling
 
 Symptoms:
@@ -204,6 +290,29 @@ Fix:
 - Confirm the client exposes MCP tools as OpenAI-compatible tool definitions.
 - Try another LM Studio model with stronger tool calling support.
 - Treat tool calling success as dependent on model capability, LM Studio endpoint support, and client implementation.
+
+### LM Studio Reports `Model reloaded`
+
+Symptoms:
+
+```text
+400 - {'error': 'Model reloaded.'}
+```
+
+This can happen briefly while LM Studio reloads the selected model. Wait for the
+model to finish loading, then retry the same prompt.
+
+### Fetch Server Resource Warning
+
+Symptoms:
+
+```text
+Error listing resources from fetch: Method not found
+```
+
+This is a non-blocking warning. The optional `fetch` server does not expose MCP
+resources, so resource listing can fail for that server while the `arxiv-insight`
+server still works.
 
 ### `health_check` Works But arXiv Search Fails
 
@@ -223,3 +332,18 @@ MEMORY_ENABLED=false
 ```
 
 or use incognito settings if memory is enabled.
+
+### Demo Failure Log Checklist
+
+If the full demo fails, collect:
+
+- Chainlit terminal output or `.demo-logs` output.
+- LM Studio Local Server log.
+- Non-sensitive `.env` values: `LLM_BASE_URL`, `LLM_MODEL`, and whether
+  `LLM_API_KEY` is set.
+- `mcp.json`.
+- Whether Chainlit showed `papers://recent`.
+- Whether `health_check` and `search_arxiv` appeared as actual tool calls.
+- The exact error message.
+
+Do not paste real API keys, tokens, or private credentials.
