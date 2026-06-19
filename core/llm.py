@@ -23,6 +23,10 @@ class LLMClient:
         )
         self.model = self.settings.llm.model
 
+    def set_model(self, model: str) -> None:
+        """Update the runtime model for subsequent requests."""
+        self.model = model
+
     def _merge_extra_body(self, base_params: Dict[str, Any], override_extra: Optional[Dict[str, Any]]) -> None:
         """Merge extra_body options without clobbering existing settings."""
         if not override_extra:

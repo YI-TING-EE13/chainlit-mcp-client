@@ -17,6 +17,7 @@ from .config import SYSTEM_PROMPT
 from .settings import AppSettings, load_settings
 from .tokenizer import TokenCounter
 from .memory_store import MemoryStore
+from .lmstudio_models import LMStudioModelManager, ModelListResult, ModelSwitchResult
 
 class ChatEngine:
     """
@@ -34,6 +35,12 @@ class ChatEngine:
         self.persistent_enabled: bool = False
         self._summary_task: Optional[asyncio.Task] = None
         self._memory_dirty: bool = False
+        self.model_manager = LMStudioModelManager(
+            self.settings.llm.base_url,
+            self.settings.llm.api_key,
+        )
+        self.current_model = self.llm.model
+        self._switching_model = False
         self.reset_context()
 
     def _build_completion_text(self, msg: Any) -> str:
@@ -139,6 +146,32 @@ class ChatEngine:
     async def get_resources(self) -> Dict[str, Any]:
         """Return available resources from all connected servers."""
         return await self.mcp.list_resources()
+
+    async def list_models(self) -> ModelListResult:
+        """Return models visible to the configured LLM endpoint."""
+        return await self.model_manager.list_models()
+
+    async def switch_model(self, selected_model: str) -> ModelSwitchResult:
+        """Switch the runtime model for future LLM requests."""
+        if self._switching_model:
+            return ModelSwitchResult(
+                success=False,
+                current_model=self.current_model,
+                previous_model=self.current_model,
+                message="A model switch is already in progress.",
+                native_available=False,
+            )
+
+        self._switching_model = True
+        try:
+            result = await self.model_manager.switch_model(self.current_model, selected_model)
+            if result.success:
+                self.current_model = result.current_model
+                self.llm.set_model(result.current_model)
+                self.assistant_name = result.current_model
+            return result
+        finally:
+            self._switching_model = False
 
     async def process_turn(self, max_turns: int = 10) -> AsyncGenerator[Dict[str, Any], None]:
         """
