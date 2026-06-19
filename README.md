@@ -1,206 +1,225 @@
-# 🤖 MCP Client (Chainlit + MCP)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Chainlit](https://img.shields.io/badge/UI-Chainlit-orange)](https://github.com/Chainlit/chainlit)
-[![Protocol](https://img.shields.io/badge/Protocol-MCP-green)](https://modelcontextprotocol.io/)
+# MCP Client
 
-A professional **Model Context Protocol (MCP)** client with a modern **Chainlit** UI and
-seamless **Ollama** integration (or any OpenAI-compatible API). Built for agentic research
-workflows, tool orchestration, and structured reasoning across connected MCP servers.
+A Chainlit UI client for local MCP demos. It connects to MCP servers over stdio,
+passes discovered tools to an OpenAI-compatible chat model, and renders a
+step-by-step ReAct workflow in the browser.
 
----
+This repo targets the sibling `../mcp-server` ArXiv Insight demo server.
+`chainlit-mcp-client` is another working copy of the same remote and currently
+contains additional local refactor work.
 
-## ✨ Key Features
+## Requirements
 
-- **MCP Compatibility**: Connects to any MCP-compliant server.
-- **Interactive UI**: Powered by Chainlit for a clean, chat-based experience.
-- **ReAct Workflow**: Tool usage, analysis, and response synthesis in one loop.
-- **Ollama Integration**: Optimized for local models and OpenAI-compatible APIs.
-- **Centralized Configuration**: Unified settings for LLM defaults and sampling.
-- **uv-First**: Reproducible dependency management and execution.
+- Python 3.12+
+- `uv`
+- LM Studio or another OpenAI-compatible API for the full UI demo
+- A model whose API endpoint supports OpenAI-style tool calling
 
----
+Ollama is not required. Legacy `OLLAMA_*` variables are still supported as a
+fallback for existing setups.
 
-## 🛠️ Installation
+## Install
 
-### Prerequisites
+```powershell
+uv sync --frozen
+```
 
-Before you begin, ensure you have the following installed:
+Copy `.env.example` to `.env` and update it for your backend.
 
-- **Python 3.12+**
-- **uv** (recommended): https://github.com/astral-sh/uv
-- **Ollama** (or any OpenAI-compatible API): https://ollama.com/
+## LLM Backend Configuration
 
-### Setup
+New setups should use the generic OpenAI-compatible variables:
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/YI-TING-EE13/chainlit-mcp-client.git
-   cd chainlit-mcp-client
+```env
+LLM_BASE_URL=http://localhost:1234/v1
+LLM_API_KEY=lm-studio
+LLM_MODEL=google/gemma-4-e4b
+```
+
+Read priority:
+
+1. `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`
+2. `OLLAMA_HOST`, `OLLAMA_KEY`, `OLLAMA_MODEL`
+3. LM Studio-style defaults: `http://localhost:1234/v1`, `lm-studio`, `google/gemma-4-e4b`
+
+`google/gemma-4-e4b` is the current model identifier shown by this LM Studio
+Local Server. If you load a different model, use the identifier shown by LM
+Studio Local Server.
+
+## MCP Server Configuration
+
+The client reads `mcp.json` from the repo root. The default local demo config is:
+
+```json
+{
+  "mcpServers": {
+    "arxiv-insight": {
+      "command": "uv",
+      "args": ["--directory", "../mcp-server", "run", "main.py"]
+    },
+    "fetch": {
+      "command": "uvx",
+      "args": ["mcp-server-fetch"]
+    }
+  }
+}
+```
+
+The `fetch` server is optional and may require network access the first time
+`uvx` installs it.
+
+## A. Local Verification Without LM Studio
+
+These checks do not require Ollama, LM Studio, or any LLM backend:
+
+```powershell
+uv sync --frozen
+uv run python scripts\smoke_test.py
+```
+
+The smoke test verifies:
+
+- `mcp.json` points to sibling `../mcp-server`.
+- The configured server directory exists.
+- `LLM_*` defaults work.
+- `OLLAMA_*` fallback still works.
+- `LLM_*` wins when both new and legacy variables are set.
+
+Passing these checks does not mean the complete Chainlit + LM Studio + MCP tool
+calling demo has succeeded.
+
+## B. Full Demo With LM Studio
+
+This flow requires manual validation with a running LM Studio server:
+
+1. Open LM Studio.
+2. Load `google/gemma-4-e4b`, or another available model with stable tool calling.
+3. Start LM Studio Local Server / OpenAI-compatible API server.
+4. Confirm the endpoint, commonly `http://localhost:1234/v1`.
+5. Set `.env`:
+
+   ```env
+   LLM_BASE_URL=http://localhost:1234/v1
+   LLM_API_KEY=lm-studio
+   LLM_MODEL=google/gemma-4-e4b
    ```
 
-2. **Install dependencies**
-  Using `uv` ensures a reproducible environment:
-   ```bash
-   uv sync
+6. In `../mcp-server`, run `uv run python scripts\smoke_test.py`.
+7. In this repo, run `uv run python scripts\smoke_test.py`.
+8. Start Chainlit:
+
+   ```powershell
+   uv run main.py
    ```
 
-3. **Configure MCP servers**
-  The client reads server configurations from mcp.json in the root directory. Ensure this file exists and points to your MCP servers.
+9. Open http://localhost:8000.
+10. In Chainlit, ask:
 
-    Example mcp.json:
-   ```json
-   {
-     "mcpServers": {
-       "arxiv": {
-         "command": "uv",
-         "args": ["run", "arxiv_insight.py"],
-         "env": {
-           "PYTHONPATH": "../ArXiv-Insight-MCP-Server"
-         }
-       }
-     }
-   }
-   ```
+    ```text
+    Run health_check, then search for three recent papers about retrieval augmented generation.
+    ```
 
-4. **Install SQLite (for long-term memory)**
-  SQLite is required if you enable long-term memory. On Ubuntu/Debian:
-  ```bash
-  sudo apt-get update
-  sudo apt-get install -y sqlite3
-  ```
+Expected successful behavior:
 
----
+- Chainlit starts and connects to configured MCP servers.
+- The model actually calls `health_check`.
+- The model then calls `search_arxiv`.
+- arXiv results come from MCP tool output, not from the model inventing citations.
 
-## ⚙️ Configuration
+This full end-to-end demo has not been verified in this repo state because it
+requires a running LM Studio server, a loaded model, and manual UI/tool-calling
+confirmation.
 
-Configuration is centralized in core/settings.py and controlled via environment variables.
-Create a .env file in the chainlit-mcp-client directory to configure the LLM connection
-and generation hyperparameters. You can copy .env.example as a starting point.
+## Validation Status
 
-```bash
-# .env
+1. Local static/structure validation: available.
+2. MCP server smoke test: available in `../mcp-server`.
+3. MCP client config smoke test: available in this repo.
+4. Full Chainlit + LM Studio + MCP tool calling demo: not yet fully verified.
 
-# URL for your Ollama instance (default: http://localhost:11434/v1)
-OLLAMA_HOST=http://localhost:11434/v1
+Current precise conclusion:
 
-# API Key (optional for Ollama, required for OpenAI)
-OLLAMA_KEY=ollama
+> The repos pass local smoke tests that do not depend on an LLM backend and are
+> ready for demo preparation. The full Chainlit + LM Studio + MCP tool calling
+> flow still needs manual validation after LM Studio is started and a model is
+> loaded.
 
-# Model to use (ensure you have pulled this model in Ollama)
-OLLAMA_MODEL=nemotron-3-nano:latest
+## Troubleshooting
 
-# UI display name
-ASSISTANT_NAME=Nemotron
+### No Ollama Installed
 
-# Default chat generation settings
-LLM_NUM_CTX=1048576
-LLM_MAX_TOKENS=
-LLM_TEMPERATURE=0.8
-LLM_TOP_P=
-LLM_TOP_K=
-LLM_REPEAT_PENALTY=
-LLM_NUM_PREDICT=
+This is not a problem. The recommended setup is LM Studio or another
+OpenAI-compatible endpoint. `OLLAMA_*` variables are only legacy fallback
+settings.
 
-# MCP sampling defaults (used for tool-driven summarization)
-SAMPLING_NUM_CTX=1048576
-SAMPLING_MAX_TOKENS=4096
-SAMPLING_TEMPERATURE=0.8
-SAMPLING_TOP_P=
-SAMPLING_TOP_K=
-SAMPLING_REPEAT_PENALTY=
-SAMPLING_NUM_PREDICT=
+Use:
 
-# Local token usage reporting
-TOKEN_USAGE_ENABLED=true
-TOKENIZER_MODEL=cl100k_base
-
-# Long-term memory
-MEMORY_ENABLED=true
-MEMORY_DB_PATH=data/memory.db
-MEMORY_DEFAULT_INCOGNITO=false
-MEMORY_SUMMARY_ENABLED=true
-MEMORY_SUMMARY_MAX_TOKENS=512
-MEMORY_SUMMARY_SCHEDULER_ENABLED=true
-MEMORY_SUMMARY_INTERVAL_SECONDS=600
+```env
+LLM_BASE_URL=http://localhost:1234/v1
+LLM_MODEL=<LM Studio model identifier>
 ```
 
-To pull the default model in Ollama:
-```bash
-ollama pull nemotron-3-nano
+### LM Studio Server Is Not Running
+
+Symptoms:
+
+- `connection refused`
+- Chainlit starts but the model does not respond
+- The demo prompt never triggers tool calling
+
+Fix:
+
+- Open LM Studio.
+- Load a model.
+- Start Local Server.
+- Confirm the port and URL.
+- Make `.env` `LLM_BASE_URL` match the LM Studio server URL.
+
+### Model Name Does Not Match
+
+Symptoms:
+
+- `model not found`
+- API says the model is unavailable
+- Chainlit cannot get a model response
+
+Fix:
+
+- Check the actual model identifier in LM Studio Local Server.
+- Set `.env` `LLM_MODEL` to that exact identifier.
+- Do not assume the README example name is the API identifier.
+
+### Model Does Not Reliably Support Tool Calling
+
+Symptoms:
+
+- Chainlit returns ordinary text but does not call MCP tools.
+- `health_check` is not triggered.
+- The model claims it searched papers without tool output.
+- arXiv results look invented.
+
+Fix:
+
+- Run `uv run python scripts\smoke_test.py` in this repo and `../mcp-server`.
+- Confirm the client exposes MCP tools as OpenAI-compatible tool definitions.
+- Try another LM Studio model with stronger tool calling support.
+- Treat tool calling success as dependent on model capability, LM Studio endpoint support, and client implementation.
+
+### `health_check` Works But arXiv Search Fails
+
+This usually means the MCP server is running. The issue is more likely network
+connectivity, arXiv API availability, query parameters, or another external
+service problem.
+
+Check `health_check` first, then test `search_arxiv` with a small query and
+`max_results`.
+
+### Memory Carries Context Between Runs
+
+Set:
+
+```env
+MEMORY_ENABLED=false
 ```
 
----
-
-## 🚀 Usage
-
-### Run the UI
-To start the Chainlit chat interface:
-
-```bash
-uv run main.py
-```
-Or explicitly:
-```bash
-uv run main.py ui
-```
-
-The UI will be available at http://localhost:8000.
-
-### Long-term memory
-When MEMORY_DEFAULT_INCOGNITO=false, the app stores conversation history and
-injects the latest summary into the system context on startup. When set to true,
-only the default system prompt is used and no history is written.
-
-### Token usage
-Token usage is calculated locally with a tokenizer when TOKEN_USAGE_ENABLED=true.
-
-### Agent Mode (Headless)
-Coming soon: a headless mode for automated tasks.
-```bash
-uv run main.py agent
-```
-
----
-
-## 🏗️ Architecture
-
-The project follows a modular architecture:
-
-```
-mcp-client/
-├── core/
-│   ├── config.py       # System prompts + MCP configuration
-│   ├── settings.py     # Centralized LLM + hyperparameter settings
-│   ├── engine.py       # Chat Engine (ReAct Loop)
-│   ├── llm.py          # LLM Client Wrapper (OpenAI/Ollama)
-│   └── mcp_client.py   # MCP Connection & Tool Management
-├── interfaces/
-│   └── ui.py           # Chainlit UI Event Handlers
-├── main.py             # Entry Point
-├── mcp.json            # MCP Server Registry
-└── pyproject.toml      # Project Metadata & Dependencies
-```
-
-### Key Components
-
-- **ChatEngine (core/engine.py)**: Manages conversation history and the ReAct loop.
-- **MCPClientWrapper (core/mcp_client.py)**: Connects to MCP servers, routes tool calls, and handles sampling.
-- **LLMClient (core/llm.py)**: Thin wrapper over AsyncOpenAI with centralized defaults.
-- **MemoryStore (core/memory_store.py)**: SQLite-backed long-term storage for conversations and summaries.
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the project
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-## 📄 License
-
-This project is licensed under the MIT License. See LICENSE for more information.
+or use incognito settings if memory is enabled.
