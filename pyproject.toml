@@ -33,7 +33,6 @@ include = [
     "core/**",
     "interfaces/**",
     "main.py",
-    "ui.py",
     "mcp.json",
     "README.md",
     ".env.example"
@@ -44,10 +43,8 @@ include = [
     "core/**",
     "interfaces/**",
     "main.py",
-    "ui.py",
     "mcp.json",
     "README.md",
     ".env.example",
     "pyproject.toml"
 ]
-
