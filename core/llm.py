@@ -1,7 +1,7 @@
 """
 LLM Client module.
 
-Provides a thin wrapper around the AsyncOpenAI client to interact with Ollama
+Provides a thin wrapper around the AsyncOpenAI client to interact with LM Studio
 or any OpenAI-compatible API. Centralized defaults are applied via settings.
 """
 
@@ -72,4 +72,3 @@ class LLMClient:
         params.update(kwargs)
 
         return await self.client.chat.completions.create(**params)
-

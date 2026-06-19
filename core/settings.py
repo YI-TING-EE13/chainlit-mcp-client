@@ -2,8 +2,8 @@
 Centralized application settings for the MCP Client.
 
 This module defines a typed configuration model and loads values from environment
-variables. It standardizes LLM connectivity, generation defaults, and sampling
-defaults used by MCP tool callbacks.
+variables. It standardizes OpenAI-compatible LLM connectivity, generation
+defaults, and sampling defaults used by MCP tool callbacks.
 """
 
 from dataclasses import dataclass
@@ -54,6 +54,15 @@ def _get_bool(name: str, default: bool = False) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
+def _get_first_str(names: tuple[str, ...], default: str) -> str:
+    """Read the first non-empty environment variable from a compatibility list."""
+    for name in names:
+        value = _get_str(name)
+        if value is not None:
+            return value
+    return default
+
+
 def _normalize_base_url(url: str) -> str:
     """Normalize API base URLs to include a scheme and the /v1 suffix."""
     if not url.startswith(("http://", "https://")):
@@ -73,7 +82,7 @@ class LLMConnectionSettings:
 
 @dataclass(frozen=True)
 class GenerationSettings:
-    """Model generation parameters and Ollama-specific options."""
+    """Model generation parameters and optional provider-specific options."""
     max_tokens: Optional[int]
     temperature: Optional[float]
     top_p: Optional[float]
@@ -82,8 +91,8 @@ class GenerationSettings:
     num_ctx: Optional[int]
     num_predict: Optional[int]
 
-    def to_ollama_options(self) -> Dict[str, Any]:
-        """Convert relevant fields to Ollama options for extra_body."""
+    def to_provider_options(self) -> Dict[str, Any]:
+        """Convert optional provider-specific fields to extra_body options."""
         options: Dict[str, Any] = {}
         if self.num_ctx is not None:
             options["num_ctx"] = self.num_ctx
@@ -105,7 +114,7 @@ class GenerationSettings:
         if self.top_p is not None:
             params["top_p"] = self.top_p
 
-        options = self.to_ollama_options()
+        options = self.to_provider_options()
         if options:
             params["extra_body"] = {"options": options}
         return params
@@ -131,10 +140,10 @@ class AppSettings:
 
 def load_settings() -> AppSettings:
     """Load settings from environment variables with reasonable defaults."""
-    base_url = _normalize_base_url(_get_str("OLLAMA_HOST", "http://localhost:11434/v1"))
-    api_key = _get_str("OLLAMA_KEY", "ollama")
-    model = _get_str("OLLAMA_MODEL", "nemotron-3-nano:latest")
-    assistant_name = _get_str("ASSISTANT_NAME", "Nemotron")
+    base_url = _normalize_base_url(_get_first_str(("LLM_BASE_URL", "OLLAMA_HOST"), "http://localhost:1234/v1"))
+    api_key = _get_first_str(("LLM_API_KEY", "OLLAMA_KEY"), "lm-studio")
+    model = _get_first_str(("LLM_MODEL", "OLLAMA_MODEL"), "google/gemma-4-e4b")
+    assistant_name = _get_str("ASSISTANT_NAME", "ArXiv Insight Assistant")
 
     generation = GenerationSettings(
         max_tokens=_get_int("LLM_MAX_TOKENS"),
@@ -142,7 +151,7 @@ def load_settings() -> AppSettings:
         top_p=_get_float("LLM_TOP_P"),
         top_k=_get_int("LLM_TOP_K"),
         repeat_penalty=_get_float("LLM_REPEAT_PENALTY"),
-        num_ctx=_get_int("LLM_NUM_CTX", 1048576),
+        num_ctx=_get_int("LLM_NUM_CTX"),
         num_predict=_get_int("LLM_NUM_PREDICT"),
     )
 
@@ -152,15 +161,15 @@ def load_settings() -> AppSettings:
         top_p=_get_float("SAMPLING_TOP_P"),
         top_k=_get_int("SAMPLING_TOP_K"),
         repeat_penalty=_get_float("SAMPLING_REPEAT_PENALTY"),
-        num_ctx=_get_int("SAMPLING_NUM_CTX", 1048576),
+        num_ctx=_get_int("SAMPLING_NUM_CTX"),
         num_predict=_get_int("SAMPLING_NUM_PREDICT"),
     )
 
-    token_usage_enabled = _get_bool("TOKEN_USAGE_ENABLED", True)
+    token_usage_enabled = _get_bool("TOKEN_USAGE_ENABLED", False)
     tokenizer_model = _get_str("TOKENIZER_MODEL", "cl100k_base")
 
-    memory_enabled = _get_bool("MEMORY_ENABLED", True)
-    memory_db_path = _get_str("MEMORY_DB_PATH", "data/memory.db")
+    memory_enabled = _get_bool("MEMORY_ENABLED", False)
+    memory_db_path = _get_str("MEMORY_DB_PATH", ".data/memory.sqlite")
     memory_default_incognito = _get_bool("MEMORY_DEFAULT_INCOGNITO", False)
     memory_summary_enabled = _get_bool("MEMORY_SUMMARY_ENABLED", True)
     memory_summary_max_tokens = _get_int("MEMORY_SUMMARY_MAX_TOKENS", 512) or 512

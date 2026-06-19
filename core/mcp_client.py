@@ -190,7 +190,7 @@ class MCPClientWrapper:
             temperature = params.temperature if params.temperature is not None else sampling.temperature
             top_p = sampling.top_p
 
-            extra_options = sampling.to_ollama_options()
+            extra_options = sampling.to_provider_options()
             extra_body = {"options": extra_options} if extra_options else None
 
             kwargs: Dict[str, Any] = {}
@@ -237,4 +237,3 @@ class MCPClientWrapper:
                 model=self.llm_client.model,
                 stopReason="error"
             )
-
