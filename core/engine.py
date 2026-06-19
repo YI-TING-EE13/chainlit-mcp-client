@@ -8,6 +8,7 @@ Implements a ReAct-style loop with tool execution and response synthesis.
 import json
 import asyncio
 import ast
+import sys
 from typing import List, Dict, Any, AsyncGenerator, Optional
 
 from .llm import LLMClient
@@ -218,8 +219,12 @@ class ChatEngine:
                 # Yield the actual message content to the UI.
                 yield {"type": "message", "content": msg.content}
                 
-                # Also print to CLI for debugging/logging.
-                print(f"\n[Assistant Response]\n{msg.content}\n")
+                # Also print to CLI for debugging/logging. Windows consoles may
+                # default to cp950, so keep debug output from breaking the UI.
+                safe_content = msg.content.encode(
+                    sys.stdout.encoding or "utf-8", errors="replace"
+                ).decode(sys.stdout.encoding or "utf-8", errors="replace")
+                print(f"\n[Assistant Response]\n{safe_content}\n")
                 return
 
             # 4) Process tool calls.
@@ -406,4 +411,3 @@ class ChatEngine:
             return
         self._summary_task.cancel()
         self._summary_task = None
-
